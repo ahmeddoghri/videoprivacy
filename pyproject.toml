@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "videoprivacy"
+version = "0.1.0"
+description = "Tracked face redaction pipeline for video"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Ahmed Doghri"}]
+dependencies = ["opencv-python-headless>=4.10"]
+
+[project.scripts]
+videoprivacy = "videoprivacy.cli:main"
+
+[tool.setuptools]
+packages = ["videoprivacy"]
+
+[tool.setuptools.package-data]
+videoprivacy = ["web/*.html"]

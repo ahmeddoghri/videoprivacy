@@ -1,0 +1,14 @@
+{
+  "tagline": "Tracked face redaction pipeline for video",
+  "headline": "Privacy should survive between detections.",
+  "summary": "Detect, track, merge, and blur faces across video frames with an inspectable redaction report.",
+  "accent": "#69d8ff",
+  "topics": "opencv,computer-vision,video-processing,privacy,face-detection,redaction",
+  "sources": [
+    [
+      "OpenCV DNN face detection",
+      "https://docs.opencv.org/master/d0/dd4/tutorial_dnn_face.html"
+    ]
+  ],
+  "name": "videoprivacy"
+}
