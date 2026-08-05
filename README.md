@@ -17,7 +17,7 @@ Match each frame's detections to existing tracks by IoU overlap, assign a new tr
 - IoU-based multi-face tracking across frames, not per-frame independent detection
 - Configurable gap tolerance that infers a face's position through missed detections
 - Padded redaction boxes and an inspectable per-frame report of every region blurred
-- CLI, JSON API, browser workbench, Docker, tests, and CI
+- CLI, JSON API, browser workbench, Docker, tests
 
 ## Run it end to end
 
