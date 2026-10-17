@@ -1,5 +1,7 @@
 # videoprivacy
 
+[![tests](https://github.com/ahmeddoghri/videoprivacy/actions/workflows/tests.yml/badge.svg)](https://github.com/ahmeddoghri/videoprivacy/actions/workflows/tests.yml) [![case study](https://img.shields.io/badge/case%20study-adoghri.com-e0703e)](https://adoghri.com/project-51.html)
+
 **A face detector misses one frame in five. If you blur frame-by-frame with no memory, that's one uncensored frame that gets published anyway.**
 
 ![videoprivacy cover](demo/cover.png)
