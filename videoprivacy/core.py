@@ -37,6 +37,30 @@ def _clip(box: Box, width: int, height: int, padding: float = 0.12) -> Box:
     return left, top, right - left, bottom - top
 
 
+def _predict(item: dict[str, Any], index: int, width: int, height: int) -> Box:
+    """Where a track's box should be on a frame its detector missed.
+
+    Holding the last known box still is wrong the moment the subject is
+    moving: after a few missed frames the blur sits where the face *was*
+    while the face itself is in the clear. Carry the track's measured
+    velocity forward, and grow the box by the distance travelled so far
+    into the gap, because the velocity estimate itself degrades. For a
+    redaction tool, over-covering is the right direction to be wrong in.
+    """
+    x, y, w, h = item["box"]
+    vx, vy = item.get("velocity", (0.0, 0.0))
+    gap = index - item["last_seen"]
+    shift_x, shift_y = vx * gap, vy * gap
+    margin = round(max(abs(shift_x), abs(shift_y)) * 0.5)
+    predicted = (
+        round(x + shift_x) - margin,
+        round(y + shift_y) - margin,
+        w + 2 * margin,
+        h + 2 * margin,
+    )
+    return _clip(predicted, width, height, padding=0.0)
+
+
 def track_frames(frames: list[dict[str, Any]], width: int, height: int, max_gap: int = 2) -> list[dict[str, Any]]:
     active: dict[int, dict[str, Any]] = {}
     next_id = 1
@@ -46,14 +70,32 @@ def track_frames(frames: list[dict[str, Any]], width: int, height: int, max_gap:
         detections = [_clip(tuple(map(int, box)), width, height) for box in frame.get("detections", [])]
         assigned: set[int] = set()
         for detection in detections:
-            matches = [(track_id, _iou(detection, item["box"])) for track_id, item in active.items() if track_id not in assigned]
+            # Match against where each track is predicted to be now, not where
+            # it was last seen, so a track survives a gap it moved during.
+            matches = [
+                (track_id, _iou(detection, _predict(item, index, width, height)))
+                for track_id, item in active.items()
+                if track_id not in assigned
+            ]
             track_id, overlap = max(matches, key=lambda item: item[1], default=(0, 0.0))
             if overlap < 0.2:
                 track_id, next_id = next_id, next_id + 1
-            active[track_id] = {"box": detection, "last_seen": index}
+                velocity = (0.0, 0.0)
+            else:
+                previous = active[track_id]
+                elapsed = max(1, index - previous["last_seen"])
+                velocity = (
+                    (detection[0] - previous["box"][0]) / elapsed,
+                    (detection[1] - previous["box"][1]) / elapsed,
+                )
+            active[track_id] = {"box": detection, "last_seen": index, "velocity": velocity}
             assigned.add(track_id)
         active = {track_id: item for track_id, item in active.items() if index - item["last_seen"] <= max_gap}
-        boxes = [{"track_id": track_id, "box": list(item["box"]), "inferred": item["last_seen"] != index} for track_id, item in sorted(active.items())]
+        boxes = []
+        for track_id, item in sorted(active.items()):
+            inferred = item["last_seen"] != index
+            box = _predict(item, index, width, height) if inferred else item["box"]
+            boxes.append({"track_id": track_id, "box": list(box), "inferred": inferred})
         report.append({"frame": index, "redactions": boxes})
     return report
 
@@ -76,7 +118,7 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def redact_video(input_path: str, output_path: str, detector: Callable[[Any], list[Box]] | None = None) -> dict[str, Any]:
+def redact_video(input_path: str, output_path: str, detector: Callable[[Any], list[Box]] | None = None, max_gap: int = 2) -> dict[str, Any]:
     import cv2
 
     capture = cv2.VideoCapture(input_path)
@@ -97,7 +139,7 @@ def redact_video(input_path: str, output_path: str, detector: Callable[[Any], li
             break
         raw_frames.append(image)
         active_frames.append({"frame": len(active_frames), "detections": [list(box) for box in detector(image)]})
-    tracked = track_frames(active_frames, width, height)
+    tracked = track_frames(active_frames, width, height, max_gap)
     for image, frame in zip(raw_frames, tracked):
         for item in frame["redactions"]:
             x, y, w, h = item["box"]
@@ -108,4 +150,4 @@ def redact_video(input_path: str, output_path: str, detector: Callable[[Any], li
         writer.write(image)
     capture.release()
     writer.release()
-    return {"input": input_path, "output": output_path, "frames": len(raw_frames), "report": analyze({"frames": active_frames, "frame_width": width, "frame_height": height})}
+    return {"input": input_path, "output": output_path, "frames": len(raw_frames), "max_gap": max_gap, "report": analyze({"frames": active_frames, "frame_width": width, "frame_height": height, "max_gap": max_gap})}

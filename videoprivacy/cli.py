@@ -20,13 +20,15 @@ def main() -> None:
     redact = sub.add_parser("redact")
     redact.add_argument("input")
     redact.add_argument("output")
+    redact.add_argument("--max-gap", type=int, default=2,
+                        help="frames a track survives without a detection (higher covers longer detector blinks, at the cost of over-redaction)")
     args = parser.parse_args()
     if args.command == "serve":
         serve(args.host, args.port)
         return
     if args.command == "redact":
         from .core import redact_video
-        print(json.dumps(redact_video(args.input, args.output), indent=2))
+        print(json.dumps(redact_video(args.input, args.output, max_gap=args.max_gap), indent=2))
         return
     payload = DEMO if args.command == "demo" else json.loads(Path(args.input).read_text())
     print(json.dumps(analyze(payload), indent=2))

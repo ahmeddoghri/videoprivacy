@@ -72,6 +72,41 @@ appearance — the tool errs toward over-redaction at a track's end rather
 than under-redaction, which is the right failure mode for a privacy
 tool. This is a verification, not a bug fix: `core.py` is unmodified.
 
+## A filled gap has to cover where the face *is*
+
+Gap-filling reused the last known box unchanged. That is correct for a
+subject standing still and wrong for one who is moving: the blur stays where
+the face was while the face itself walks out of it.
+
+Measured on a real clip (an `mp4` written with OpenCV, a moving
+high-frequency patch standing in for a face, the detector forced to blink
+for three frames). Residual detail inside the true face region, where 1.0 is
+completely untouched:
+
+| missed frame | before | after |
+| --- | ---: | ---: |
+| 1st frame of the gap | 0.04 | **0.001** |
+| 2nd frame of the gap | 0.20 | **0.001** |
+| 3rd frame (beyond `max_gap=2`) | 0.96 | 0.96 |
+
+A track now carries its measured velocity, and a filled box is predicted
+forward and grown by the distance travelled into the gap, since the velocity
+estimate itself degrades. Matching uses the predicted position too, so a
+track survives a gap it moved during. A still subject gets the identical box
+it had, with no needless inflation.
+
+The third row is the honest boundary, not a bug: past `max_gap` frames the
+track is dropped rather than guessed about forever. That knob is now on the
+CLI, because it is the real tradeoff in a redaction tool:
+
+```bash
+videoprivacy redact in.mp4 out.mp4 --max-gap 5
+```
+
+Raising it covers longer detector blinks and over-redacts more; lowering it
+does the opposite. For privacy work, over-covering is the right direction to
+be wrong in.
+
 ## Scope
 
 The default local pipeline uses OpenCV's bundled frontal-face cascade for zero-setup operation — it works out of the box and it is not the detector you should ship. Production deployments need a domain-tested DNN detector with measured recall across pose, lighting, age, skin tone, motion blur, and camera geometry; this tracker is the layer that sits on top of whatever detector you actually trust.
